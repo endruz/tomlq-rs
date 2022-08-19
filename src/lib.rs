@@ -70,19 +70,50 @@ fn query_toml_value(toml_str: &str, key: &str) -> Result<String, String> {
         Err(_) => return Err(String::from("Parsing failed!")),
     };
 
-    let value =
-        key.to_string()
-            .split('.')
-            .fold(
-                Some(&toml_obj),
-                |accumulator: Option<&Value>, key| match accumulator {
-                    Some(a) => a.get(key),
-                    None => None,
-                },
-            );
+    let value = split_key(key)
+        .iter()
+        .fold(
+            Some(&toml_obj),
+            |accumulator: Option<&Value>, key| match accumulator {
+                Some(a) => a.get(key),
+                None => None,
+            },
+        );
 
     match value {
         Some(v) => Ok(format!("{}", v.to_string().trim_matches('"'))),
         None => Err(format!("Key {} not found!", key)),
     }
+}
+
+fn split_key(key: &str) -> Vec<&str> {
+    let mut flag: char = '.';
+    let mut index: usize = 0;
+    let mut key_vector: Vec<&str> = Vec::new();
+
+    for (i, s) in key.chars().enumerate() {
+        match s {
+            '.' => match flag {
+                '.' => {
+                    key_vector.push(key[index..i].trim_matches('"').trim_matches('\''));
+                    index = i + 1;
+                }
+                _ => (),
+            },
+            '\'' => match flag {
+                '\'' => flag = '.',
+                '.' => flag = '\'',
+                _ => (),
+            },
+            '"' => match flag {
+                '"' => flag = '.',
+                '.' => flag = '"',
+                _ => (),
+            },
+            _ => (),
+        }
+    }
+
+    key_vector.push(key[index..key.len()].trim_matches('"').trim_matches('\''));
+    key_vector
 }
