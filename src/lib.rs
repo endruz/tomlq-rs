@@ -6,6 +6,9 @@ use std::io;
 use clap::ArgMatches;
 use toml::Value;
 
+#[cfg(test)]
+mod test;
+
 pub struct Config {
     pub key: String,
     pub filename: String,
@@ -41,49 +44,45 @@ impl fmt::Display for TomlqError {
 impl Error for TomlqError {}
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let contents = match fs::read_to_string(&config.filename) {
+    let toml_string = match fs::read_to_string(&config.filename) {
         Ok(c) => c,
         Err(e) => {
             match e.kind() {
                 io::ErrorKind::NotFound => {
-                    return Err(Box::new(TomlqError("No such file".to_string())));
+                    return Err(Box::new(TomlqError(String::from("No such file!"))));
                 }
                 _ => {
-                    return Err(Box::new(TomlqError("Cannot read the file".to_string())));
+                    return Err(Box::new(TomlqError(String::from("Cannot read the file!"))));
                 }
             };
         }
     };
 
-    let toml_obj = match toml::from_str(&contents) {
-        Ok(v) => v,
-        Err(_) => {
-            return Err(Box::new(TomlqError("Parsing failed".to_string())));
-        }
-    };
-
-    let value = config
-        .key
-        .split('.')
-        .fold(
-            Some(&toml_obj),
-            |accumulator: Option<&Value>, key| match accumulator {
-                Some(a) => a.get(key),
-                None => None,
-            },
-        );
-
-    match value {
-        Some(v) => {
-            println!("{}", v.to_string().trim_matches('"'));
-        }
-        None => {
-            return Err(Box::new(TomlqError(format!(
-                "Key {} not found!",
-                config.key
-            ))));
-        }
-    };
+    let value = query_toml_value(&toml_string, &config.key)?;
+    println!("{}", value);
 
     Ok(())
+}
+
+fn query_toml_value(toml_str: &str, key: &str) -> Result<String, String> {
+    let toml_obj = match toml::from_str(toml_str) {
+        Ok(v) => v,
+        Err(_) => return Err(String::from("Parsing failed!")),
+    };
+
+    let value =
+        key.to_string()
+            .split('.')
+            .fold(
+                Some(&toml_obj),
+                |accumulator: Option<&Value>, key| match accumulator {
+                    Some(a) => a.get(key),
+                    None => None,
+                },
+            );
+
+    match value {
+        Some(v) => Ok(format!("{}", v.to_string().trim_matches('"'))),
+        None => Err(format!("Key {} not found!", key)),
+    }
 }
