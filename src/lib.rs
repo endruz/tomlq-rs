@@ -4,6 +4,7 @@ use std::fs;
 use std::io;
 
 use clap::ArgMatches;
+use toml::ser;
 use toml::Value;
 
 #[cfg(test)]
@@ -81,7 +82,14 @@ fn query_toml_value(toml_str: &str, key: &str) -> Result<String, String> {
         );
 
     match value {
-        Some(v) => Ok(format!("{}", v.to_string().trim_matches('"'))),
+        // TODO: 添加选项输出 ser::to_string_pretty()
+        Some(v) => match ser::to_string(v) {
+            Ok(s) => match v.type_str() {
+                "string" => Ok(format!("{}", &s[1..s.len() - 1])),
+                _ => Ok(format!("{}", s)),
+            },
+            Err(_) => Err(format!("Key {} serialization failed!", key)),
+        },
         None => Err(format!("Key {} not found!", key)),
     }
 }

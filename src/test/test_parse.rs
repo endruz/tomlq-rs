@@ -1,4 +1,4 @@
-use super::super::query_toml_value;
+use crate::query_toml_value;
 
 #[test]
 /// 测试解析无效 TOML 文件：有键无值
