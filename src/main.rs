@@ -1,14 +1,20 @@
+#[macro_use]
+extern crate clap;
+
+// Std
 use std::process;
 
-use clap::{App, Arg};
+// External
+use clap::{Arg, Command};
 
-use tomlq::Config;
+// Internal
+use tomlq_rs::Param;
 
 fn main() {
-    let matches = App::new("tomlq")
-        .version("0.1.0")
-        .author("endruz <endruz@foxmail.com>")
-        .about("A command-line TOML processing tool.")
+    let matches = Command::new(crate_name!())
+        .version(crate_version!())
+        .author(crate_authors!())
+        .about(crate_description!())
         .arg(
             Arg::with_name("KEY")
                 .help("Key to query from the TOML file")
@@ -23,12 +29,12 @@ fn main() {
         )
         .get_matches();
 
-    let config = Config::new(&matches).unwrap_or_else(|err| {
+    let param = Param::new(&matches).unwrap_or_else(|err| {
         eprintln!("error: {}", err);
         process::exit(1);
     });
 
-    if let Err(e) = tomlq::run(config) {
+    if let Err(e) = tomlq_rs::parse(param) {
         eprintln!("error: {}", e);
         process::exit(1);
     }

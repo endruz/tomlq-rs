@@ -1,22 +1,55 @@
+// Std
 use std::error::Error;
-use std::fmt;
 use std::fs;
 use std::io;
 
+// External
 use clap::ArgMatches;
 use toml::ser;
 use toml::Value;
 
+// Internal
+use crate::error::TomlqError;
+
+mod error;
+
 #[cfg(test)]
 mod test;
 
-pub struct Config {
+/// A structure to store parameters
+pub struct Param {
     pub key: String,
     pub filename: String,
 }
 
-impl Config {
-    pub fn new(matches: &ArgMatches) -> Result<Config, &'static str> {
+impl Param {
+    /// Creates a new instance of an Param.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use clap::{Command, Arg};
+    /// # use tomlq_rs::Param;
+    /// let matches = Command::new("myapp")
+    ///                 .arg(
+    ///                     Arg::with_name("KEY")
+    ///                         .help("Key to query from the TOML file")
+    ///                         .required(true)
+    ///                         .index(1),
+    ///                     )
+    ///                 .arg(
+    ///                     Arg::with_name("FILE")
+    ///                         .help("A TOML file to load")
+    ///                         .required(true)
+    ///                         .index(2),
+    ///                     )
+    ///                 .get_matches_from(vec!["myapp", "key", "a.toml"]);
+    ///
+    /// let param = Param::new(&matches).unwrap();
+    /// assert_eq!(param.key, "key");
+    /// assert_eq!(param.filename, "a.toml");
+    /// ```
+    pub fn new(matches: &ArgMatches) -> Result<Param, &'static str> {
         let key = match matches.value_of("KEY") {
             Some(f) => f.to_string(),
             None => {
@@ -29,23 +62,25 @@ impl Config {
                 return Err("Must specify File to load!");
             }
         };
-        Ok(Config { key, filename })
+        Ok(Param { key, filename })
     }
 }
 
-#[derive(Debug)]
-struct TomlqError(String);
-
-impl fmt::Display for TomlqError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl Error for TomlqError {}
-
-pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let toml_string = match fs::read_to_string(&config.filename) {
+/// Parse toml file
+///
+/// # Example
+///
+/// ```
+/// # use tomlq_rs::{Param, parse};
+/// let param = Param {
+///     key: String::from("package.name"),
+///     filename: String::from("Cargo.toml")
+/// };
+/// let result = parse(param).unwrap();
+/// assert_eq!(result, ());
+/// ```
+pub fn parse(param: Param) -> Result<(), Box<dyn Error>> {
+    let toml_string = match fs::read_to_string(&param.filename) {
         Ok(c) => c,
         Err(e) => {
             match e.kind() {
@@ -59,19 +94,30 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let value = query_toml_value(&toml_string, &config.key)?;
+    let value = query_toml_value(&toml_string, &param.key)?;
     println!("{}", value);
 
     Ok(())
 }
 
-fn query_toml_value(toml_str: &str, key: &str) -> Result<String, String> {
+/// Query value from toml by key.
+///
+/// # Examples
+///
+/// ```
+/// # use tomlq_rs::query_toml_value;
+/// let toml_str = r#"key = "value"  # This is a comment at the end of a line"#;
+/// let key = "key";
+/// let value = query_toml_value(toml_str, key).unwrap();
+/// assert_eq!(value, "value");
+/// ```
+pub fn query_toml_value(toml_str: &str, key: &str) -> Result<String, String> {
     let toml_obj = match toml::from_str(toml_str) {
         Ok(v) => v,
         Err(_) => return Err(String::from("Parsing failed!")),
     };
 
-    let value = split_key(key)
+    let value = parse_key(key)
         .iter()
         .fold(
             Some(&toml_obj),
@@ -94,7 +140,17 @@ fn query_toml_value(toml_str: &str, key: &str) -> Result<String, String> {
     }
 }
 
-fn split_key(key: &str) -> Vec<&str> {
+/// Parse key.
+///
+/// # Examples
+///
+/// ```
+/// # use tomlq_rs::parse_key;
+/// let key = r#"site."google.com""#;
+/// let result = parse_key(key);
+/// assert_eq!(result, vec!["site", "google.com"]);
+/// ```
+pub fn parse_key(key: &str) -> Vec<&str> {
     let mut flag: char = '.';
     let mut index: usize = 0;
     let mut key_vector: Vec<&str> = Vec::new();
